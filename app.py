@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import json
 import os
 from PIL import Image
@@ -157,8 +157,12 @@ with st.sidebar:
     
     st.divider()
     model_choice = st.selectbox(
-        "Silnik AI",
-        ["gemini-3.6-flash (Zalecany - Szybki)", "gemini-3.7-flash (Pro OSINT)"],
+        "Silnik AI (Kaskada Anty-429)",
+        [
+            "gemini-3.6-pro (Geoguessr Master - NAJDOKŁADNIEJSZY)", 
+            "gemini-3.6-flash (Szybki - Lżejsze OSINT)",
+            "gemini-3.7-flash (Alternatywa - Pula #3)"
+        ],
         index=0
     )
     selected_model = model_choice.split(" ")[0]
