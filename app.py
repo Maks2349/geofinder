@@ -107,10 +107,6 @@ st.markdown("""
         color: #FFFFFF !important;
         border: 1px solid #444;
     }
-    .insta-btn {
-        background: linear-gradient(45deg, #f09433 0%, #e6683c 25%, #dc2743 50%, #cc2366 75%, #bc1888 100%);
-        color: #FFFFFF !important;
-    }
     .maps-btn {
         background-color: #2563EB;
         color: #FFFFFF !important;
@@ -162,7 +158,7 @@ with st.sidebar:
     st.divider()
     model_choice = st.selectbox(
         "Silnik AI",
-        ["gemini-3.6-flash (Zalecany)", "gemini-3.7-flash (Pro Reasoning)"],
+        ["gemini-3.6-flash (Zalecany - Szybki)", "gemini-3.7-flash (Pro OSINT)"],
         index=0
     )
     selected_model = model_choice.split(" ")[0]
@@ -170,7 +166,7 @@ with st.sidebar:
 col_title, col_reset = st.columns([3.5, 1.2])
 with col_title:
     st.markdown('<div class="main-title">GeoFinder 🌍</div>', unsafe_allow_html=True)
-    st.markdown('<div class="sub-title">Precyzyjne namierzanie dokładnej ulicy i budynku na mapie Google</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sub-title">Rozpoznawanie parków, lasów, miast i ulic | Google Maps 3D | 3 Punkty</div>', unsafe_allow_html=True)
 
 with col_reset:
     if st.button("🔄 Wyszukaj ponownie (Wyczyść)", use_container_width=True):
@@ -179,7 +175,7 @@ with col_reset:
         st.session_state["map_key"] += 1
         st.rerun()
 
-st.markdown('<div class="paste-hint">📸 <b>Wgraj lub wklej (Ctrl + V):</b> Przeciągnij zdjęcie lub wklej ze schowka.</div>', unsafe_allow_html=True)
+st.markdown('<div class="paste-hint">📸 <b>Wgraj lub wklej (Ctrl + V):</b> Przeciągnij zdjęcie lasu, parku, miasta lub ulicy.</div>', unsafe_allow_html=True)
 
 uploaded_files = st.file_uploader(
     "Wybierz plik ze zdjęciem / zrzutem ekranu",
@@ -212,10 +208,14 @@ if loaded_images:
             st.success(f"📍 Wykryto GPS w pliku! ({first_exif['latitude']}, {first_exif['longitude']})")
 
     with col_controls:
-        st.markdown("### 🎯 Namierzanie dokładnej ulicy")
-        st.write("Silnik przeanalizuje tablice, styl zabudowy, numery, infrastrukturę i wbije pinezkę w konkretną ulicę na mapie.")
+        st.markdown("### 🎯 Namierzanie lokalizacji")
+        user_hint_input = st.text_input(
+            "💡 Miasto / Region (Opcjonalnie dla parków miejskich):",
+            placeholder="np. Toruń, Bydgoszcz, Kujawsko-pomorskie...",
+            help="Jeśli zdjęcie to lokalny park w Twoim mieście, wpisanie miasta pozwoli AI wskazać konkretną nazwę parku!"
+        )
         
-        btn_search = st.button("🎯 Namierz dokładną ulicę i adres!", type="primary", use_container_width=True)
+        btn_search = st.button("🚀 Namierz lokalizację i 3 punkty!", type="primary", use_container_width=True)
 
     if btn_search:
         if has_gps:
@@ -247,11 +247,12 @@ if loaded_images:
             if not api_key_input:
                 st.warning("⚠️ Wprowadź klucz Gemini API w pasku po lewej stronie.")
             else:
-                with st.spinner("🕵️‍♂️ Analiza ulic, tablic i infrastruktury w bazach danych..."):
+                with st.spinner("🕵️‍♂️ Analiza botaniczna i infrastruktury (3–4 sekundy)..."):
                     ai_res = analyze_images_top3(
                         images=loaded_images,
                         api_key=api_key_input,
-                        model_name=selected_model
+                        model_name=selected_model,
+                        user_hint=user_hint_input
                     )
 
                 if not ai_res.get("success", False):
@@ -292,7 +293,7 @@ if res is not None:
     st.divider()
     candidates = res.get("candidates", [])
     
-    st.subheader("🏠 Wytypowane Dokładne Ulice i Adresy:")
+    st.subheader("🎯 3 Najbardziej Prawdopodobne Lokalizacje:")
 
     col_c1, col_c2, col_c3 = st.columns(3)
     
@@ -302,10 +303,10 @@ if res is not None:
             st.markdown(f"""
             <div class="candidate-card-1">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <span style="font-weight:bold; font-size:1.05rem; color:#FCA5A5;">🔴 #1 Główna Ulica</span>
+                    <span style="font-weight:bold; font-size:1.05rem; color:#FCA5A5;">🔴 #1 Główny Wybór</span>
                     <span class="prob-badge-1">{c1.get('probability', 80)}%</span>
                 </div>
-                <h2 style="margin:0 0 4px 0; color:white; font-size:1.4rem;">{c1.get('exact_street', c1.get('place_name'))}</h2>
+                <h2 style="margin:0 0 4px 0; color:white; font-size:1.3rem;">{c1.get('exact_street', c1.get('place_name'))}</h2>
                 <div style="font-size:0.95rem; color:#E2E8F0; margin-bottom:6px;">📍 {c1.get('place_name')}</div>
                 <div style="font-size:0.85rem; color:#94A3B8; margin-bottom:6px;">{c1.get('city') + ', ' if c1.get('city') else ''}{c1.get('region') + ', ' if c1.get('region') else ''}{c1.get('country')}</div>
                 <div style="font-size:0.85rem; color:#34D399;"><b>Współrzędne:</b> {c1.get('latitude', 0.0):.5f}, {c1.get('longitude', 0.0):.5f}</div>
@@ -319,10 +320,10 @@ if res is not None:
             st.markdown(f"""
             <div class="candidate-card-2">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <span style="font-weight:bold; font-size:1.05rem; color:#93C5FD;">🔵 #2 Alternatywna Ulica</span>
+                    <span style="font-weight:bold; font-size:1.05rem; color:#93C5FD;">🔵 #2 Alternatywa A</span>
                     <span class="prob-badge-2">{c2.get('probability', 15)}%</span>
                 </div>
-                <h3 style="margin:0 0 4px 0; color:white; font-size:1.2rem;">{c2.get('exact_street', c2.get('place_name'))}</h3>
+                <h3 style="margin:0 0 4px 0; color:white; font-size:1.15rem;">{c2.get('exact_street', c2.get('place_name'))}</h3>
                 <div style="font-size:0.9rem; color:#CBD5E1; margin-bottom:6px;">📍 {c2.get('place_name')}</div>
                 <div style="font-size:0.85rem; color:#94A3B8; margin-bottom:6px;">{c2.get('city') + ', ' if c2.get('city') else ''}{c2.get('region') + ', ' if c2.get('region') else ''}{c2.get('country')}</div>
                 {f'<div style="font-size:0.8rem; color:#94A3B8; margin-top:6px;"><i>{c2.get("reason")}</i></div>' if c2.get("reason") else ''}
@@ -335,10 +336,10 @@ if res is not None:
             st.markdown(f"""
             <div class="candidate-card-3">
                 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                    <span style="font-weight:bold; font-size:1.05rem; color:#D8B4FE;">🟣 #3 Alternatywna Ulica</span>
+                    <span style="font-weight:bold; font-size:1.05rem; color:#D8B4FE;">🟣 #3 Alternatywa B</span>
                     <span class="prob-badge-3">{c3.get('probability', 5)}%</span>
                 </div>
-                <h3 style="margin:0 0 4px 0; color:white; font-size:1.2rem;">{c3.get('exact_street', c3.get('place_name'))}</h3>
+                <h3 style="margin:0 0 4px 0; color:white; font-size:1.15rem;">{c3.get('exact_street', c3.get('place_name'))}</h3>
                 <div style="font-size:0.9rem; color:#CBD5E1; margin-bottom:6px;">📍 {c3.get('place_name')}</div>
                 <div style="font-size:0.85rem; color:#94A3B8; margin-bottom:6px;">{c3.get('city') + ', ' if c3.get('city') else ''}{c3.get('region') + ', ' if c3.get('region') else ''}{c3.get('country')}</div>
                 {f'<div style="font-size:0.8rem; color:#94A3B8; margin-top:6px;"><i>{c3.get("reason")}</i></div>' if c3.get("reason") else ''}
@@ -346,30 +347,30 @@ if res is not None:
             """, unsafe_allow_html=True)
 
     tab_map, tab_deduction, tab_sniper, tab_social = st.tabs([
-        "🗺️ Mapa Google (Pinezki w Ulicach)",
+        "🗺️ Mapa Google (Pinezki w Obiektach)",
         "🕵️‍♂️ Śledcza Dedukcja OSINT",
         "🎯 Snajper 3D (Widok 360° POV)",
         "📱 TikTok, Kamery LIVE & Social"
     ])
 
     with tab_map:
-        st.write("🔴 **Czerwona pinezka:** Główna wytypowana ulica | 🔵 **Niebieska:** Alternatywa A | 🟣 **Fioletowa:** Alternatywa B")
+        st.write("🔴 **Czerwona pinezka:** Główny wytypowany park/obiekt | 🔵 **Niebieska:** Alternatywa A | 🟣 **Fioletowa:** Alternatywa B")
         multi_map = create_multi_location_map(candidates, is_gps=res["has_gps"])
         st_folium(multi_map, key=f"folium_map_view_{st.session_state['map_key']}", width=None, height=480, returned_objects=[])
 
     with tab_deduction:
-        st.subheader("🕵️‍♂️ Raport dedukcji: Jak ustalono tę ulicę?")
+        st.subheader("🕵️‍♂️ Raport dedukcji: Jak rozpoznano ten park/krajobraz?")
         st.write(res.get("deduction", "Analiza cech obrazu."))
 
     with tab_sniper:
-        st.subheader("🎯 Snajper 3D: Zanurzenie w perspektywę 360° w tę ulicę")
+        st.subheader("🎯 Snajper 3D: Zanurzenie w perspektywę 360°")
         sl = res["social_links"]
         street_url = sl["maps"]["street_view"]
         earth_url = sl["maps"]["earth_3d"]
 
         st.markdown(f"""
         <div style="margin-bottom: 15px;">
-            <a class="social-btn sniper-btn" href="{street_url}" target="_blank">🎯 Otwórz Street View 360° tej ulicy &rarr;</a>
+            <a class="social-btn sniper-btn" href="{street_url}" target="_blank">🎯 Otwórz Street View 360° &rarr;</a>
             <a class="social-btn earth-btn" href="{earth_url}" target="_blank">🌐 Otwórz Google Earth 3D &rarr;</a>
         </div>
         """, unsafe_allow_html=True)
