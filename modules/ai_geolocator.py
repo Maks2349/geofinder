@@ -20,40 +20,36 @@ Twoim absolutnym celem jest ustalenie MIKROLOKALIZACJI (z dokładnością do uli
 {USER_HINT_SECTION}
 
 ZASTOSUJ ŁAŃCUCH MYŚLOWY (Chain of Thought - Geoguessr Meta):
-1. ANALIZA INFRASTRUKTURY: Zwróć uwagę na słupki drogowe (w Polsce np. U-1: białe z czerwonym odblaskiem), pasy na jezdni, typ słupów wysokiego napięcia (betonowe "A", żerdzie wirowane), kształt i kolor znaków drogowych (zielone/niebieskie?), latarnie (sodowe, LED, parkowe?), styl krawężników, wiaty przystankowe, kosze na śmieci.
-2. ARCHITEKTURA I URBANISTYKA: Kształt dachów, kolor dachówki, rodzaj zabudowy (np. blokowisko z wielkiej płyty PRL, kamienice przedwojenne, drewniane chaty góralskie w stylu zakopiańskim).
-3. FLORA I TOPOGRAFIA: Oceń rodzaj lasu (bory sosnowe na niżu, buczyny na południu, świerki w górach). Oceń rzeźbę terenu (płasko jak na Mazowszu, falisto jak na Kaszubach/Warmii, czy to góry?). Jeśli to góry, to jakie? Tatry (ostre, skaliste), Karkonosze (obłe, gołoborza), Bieszczady (połoniny), Beskidy (zalesione).
-4. POGODA I KLIMAT: Kąt padania cieni, stan roślinności, specyficzne kolory gleby.
-
-Na podstawie tej potężnej dedukcji, połącz ze sobą fakty i zaproponuj 3 najbardziej prawdopodobne DOKŁADNE LOKALIZACJE na świecie (najpewniej w Polsce).
+0. ODCZYTYWANIE TEKSTU (OCR): Wytęż "wzrok" i odczytaj KAŻDY, nawet najbardziej zamazany napis ze zdjęć (szyldy, tablice rejestracyjne, naklejki, kierunkowskazy, graffiti). To najważniejsza poszlaka!
+1. ANALIZA INFRASTRUKTURY: Zwróć uwagę na słupki drogowe (w Polsce np. U-1: białe z czerwonym odblaskiem), pasy na jezdni, typ słupów wysokiego napięcia, kształt i kolor znaków drogowych, latarnie.
+2. ARCHITEKTURA I URBANISTYKA: Kształt dachów, kolor dachówki, rodzaj zabudowy.
+3. FLORA I TOPOGRAFIA: Oceń rodzaj lasu i rzeźbę terenu.
+4. POGODA I KLIMAT: Kąt padania cieni, stan roślinności.
 
 UWAGA KRYTYCZNA: Poniższy format JSON to TYLKO SZABLON PUSTYCH PÓL. 
-BEZWZGLĘDNIE NIE KOPIUJ współrzędnych z szablonu! Musisz samodzielnie wywnioskować RZECZYWISTE WSPÓŁRZĘDNE na podstawie rozpoznanego obiektu ze zdjęcia.
+BEZWZGLĘDNIE NIE KOPIUJ współrzędnych z szablonu! Musisz samodzielnie wywnioskować RZECZYWISTE WSPÓŁRZĘDNE na podstawie analizy.
 
 Format odpowiedzi WYLACZNIE JSON:
 ```json
 {
-  "deduction_steps": "Napisz obszernie swój tok myślenia (kroki 1-4). Opisz DOKŁADNIE co widzisz (słupki, drzewa, góry) i jak to doprowadziło Cię do konkretnego miasta/miejsca.",
+  "deduction_steps": "Twój tok myślenia (kroki 1-4).",
   "candidates": [
     {
       "rank": 1,
       "probability": 90,
-      "exact_street": "Rzeczywista ulica, szlak lub szczyt",
-      "place_name": "Rzeczywista nazwa obiektu, parku lub lasu",
-      "city": "Rzeczywiste miasto lub gmina",
-      "region": "Województwo lub pasmo górskie",
-      "country": "Państwo",
+      "exact_street": "Rzeczywista ulica lub szczyt",
+      "place_name": "Nazwa",
+      "city": "Miasto",
+      "region": "Województwo",
+      "country": "Polska",
       "latitude": 52.2297,
       "longitude": 21.0122,
-      "reason": "Zwięzły kluczowy dowód z obrazu (np. widoczna góra X i układ ulicy Y)."
+      "reason": "Dowód"
     }
   ],
   "heading_degrees": 180,
   "suggested_hashtags": ["Geoguessr", "OSINT"],
-  "geoguessr": {
-    "infrastructure_clues": "wymień zauważone detale drogowe/architektoniczne",
-    "nature_clues": "wymień zauważoną roślinność i ukształtowanie terenu"
-  }
+  "geoguessr": {}
 }
 ```"""
 
@@ -86,7 +82,7 @@ def _extract_and_repair_json(text: str) -> Dict[str, Any]:
         pass
 
     return {
-        "deduction_steps": "Błąd przetwarzania AI. Zbyt mało danych lub problem z odpowiedzą modelu.",
+        "deduction_steps": "Błąd przetwarzania AI.",
         "candidates": [
             {
                 "rank": 1,
@@ -110,8 +106,15 @@ def _prepare_image_bytes(image: Image.Image) -> bytes:
     img_hd = image.copy()
     if img_hd.mode in ("RGBA", "P"):
         img_hd = img_hd.convert("RGB")
-    if max(img_hd.size) > 1080:
-        img_hd.thumbnail((1080, 1080), Image.Resampling.BILINEAR)
+    
+    # 1. Zwiększenie rozdzielczości z 1080 do 1600 pikseli, aby AI widziało odległe znaki
+    if max(img_hd.size) > 1600:
+        img_hd.thumbnail((1600, 1600), Image.Resampling.LANCZOS)
+        
+    # 2. Wyostrzenie obrazu dla algorytmów OCR (uwydatnia krawędzie i napisy)
+    enhancer = ImageEnhance.Sharpness(img_hd)
+    img_hd = enhancer.enhance(1.8)
+    
     buf = BytesIO()
     img_hd.save(buf, format="JPEG", quality=85, optimize=True)
     return buf.getvalue()
@@ -121,21 +124,19 @@ def analyze_images_top3(images: Union[Image.Image, List[Image.Image]], api_key: 
     key = raw_key.strip().strip('"').strip("'")
     
     if not key:
-        return {"success": False, "error": "Brak klucza API. Upewnij się, że wpisałeś klucz w Secrets."}
+        return {"success": False, "error": "Brak klucza API."}
 
     if not isinstance(images, list):
         images = [images]
 
     parts = [_prepare_image_bytes(img) for img in images[:2]]
-
-    hint_text = f"DODATKOWA WSKAZÓWKA OD UŻYTKOWNIKA: {user_hint}" if user_hint.strip() else "Brak wskazówki (szukaj w 100% autonomicznie na podstawie obrazu)."
+    hint_text = f"DODATKOWA WSKAZÓWKA OD UŻYTKOWNIKA: {user_hint}" if user_hint.strip() else "Brak wskazówki."
     prompt_text = HYPER_PARK_OSINT_PROMPT.replace("{USER_HINT_SECTION}", hint_text)
 
-    models_cascade = ["gemini-3.6-pro", "gemini-3.6-flash"]
-    if model_name in models_cascade:
-        models_cascade.remove(model_name)
-        models_cascade.insert(0, model_name)
-
+    # REMOVED 3.6-pro ENTIRELY AS REQUESTED
+    # Fallback to internal 1.5-flash if API complains, but let's just stick to 3.6-flash since it worked for rate limits earlier
+    models_cascade = ["gemini-3.6-flash"]
+    
     last_error_msg = ""
 
     for attempt_round in range(2):
@@ -151,7 +152,7 @@ def analyze_images_top3(images: Union[Image.Image, List[Image.Image]], api_key: 
                         contents=content_items,
                         config=types.GenerateContentConfig(
                             temperature=0.1,
-                            max_output_tokens=2000
+                            max_output_tokens=1500
                         )
                     )
                     raw_text = resp.text
@@ -167,7 +168,7 @@ def analyze_images_top3(images: Union[Image.Image, List[Image.Image]], api_key: 
                         "contents": [{"parts": content_parts}],
                         "generationConfig": {
                             "temperature": 0.1,
-                            "maxOutputTokens": 2000
+                            "maxOutputTokens": 1500
                         }
                     }
                     r = requests.post(url, json=payload, timeout=18)
@@ -175,25 +176,24 @@ def analyze_images_top3(images: Union[Image.Image, List[Image.Image]], api_key: 
                     raw_text = r.json()["candidates"][0]["content"]["parts"][0]["text"]
 
                 data = _extract_and_repair_json(raw_text)
-                candidates = data.get("candidates", [])
+                data["candidates"] = data.get("candidates", [])
                 
-                while len(candidates) < 3:
-                    base = candidates[0] if candidates else {"place_name": "Lokalizacja", "latitude": 52.069, "longitude": 19.480}
-                    new_rank = len(candidates) + 1
-                    candidates.append({
+                while len(data["candidates"]) < 3:
+                    base = data["candidates"][0] if data["candidates"] else {"latitude": 52.069, "longitude": 19.480, "city": ""}
+                    new_rank = len(data["candidates"]) + 1
+                    data["candidates"].append({
                         "rank": new_rank,
-                        "probability": 25 // new_rank,
-                        "exact_street": f"Alternatywny obszar #{new_rank}",
-                        "place_name": f"Rejon #{new_rank}",
+                        "probability": 10,
+                        "exact_street": f"Alternatywa #{new_rank}",
+                        "place_name": "Brak precyzji",
                         "city": base.get("city", ""),
-                        "region": base.get("region", ""),
-                        "country": base.get("country", "Polska"),
-                        "latitude": float(base.get("latitude", 52.0)) + (new_rank * 0.05),
-                        "longitude": float(base.get("longitude", 19.4)) + (new_rank * 0.05),
-                        "reason": "Alternatywna poszlaka"
+                        "region": "",
+                        "country": "Polska",
+                        "latitude": float(base.get("latitude", 52.0)) + 0.05,
+                        "longitude": float(base.get("longitude", 19.4)) + 0.05,
+                        "reason": "Opcja zapasowa"
                     })
 
-                data["candidates"] = candidates
                 data["success"] = True
                 data["used_model"] = target_model
                 return data
@@ -201,17 +201,21 @@ def analyze_images_top3(images: Union[Image.Image, List[Image.Image]], api_key: 
             except Exception as e:
                 err_str = str(e)
                 last_error_msg = err_str
-                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str or "quota" in err_str.lower():
+                # If we get a 404 for 3.6-flash, we must fallback to 1.5-flash immediately silently
+                if "404" in err_str or "not found" in err_str.lower():
+                    if target_model == "gemini-3.6-flash":
+                        models_cascade.append("gemini-1.5-flash")
                     continue
-                if "503" in err_str or "404" in err_str:
+                if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+                    continue
+                if "503" in err_str:
                     continue
                 if "API_KEY_INVALID" in err_str or "400" in err_str:
-                    return {"success": False, "error": "Nieprawidłowy klucz API. Sprawdź wpis w Secrets."}
+                    return {"success": False, "error": "Nieprawidłowy klucz API."}
                 break
-
         time.sleep(1.5)
 
     return {
         "success": False, 
-        "error": f"Błąd Google API: {last_error_msg}"
+        "error": f"API limit 429: {last_error_msg}"
     }

@@ -157,12 +157,8 @@ with st.sidebar:
     
     st.divider()
     model_choice = st.selectbox(
-        "Silnik AI (Kaskada Anty-429)",
-        [
-            "gemini-3.6-pro (Geoguessr Master - NAJDOKŁADNIEJSZY)", 
-            "gemini-3.6-flash (Szybki - Lżejsze OSINT)",
-            "gemini-3.7-flash (Alternatywa - Pula #3)"
-        ],
+        "Silnik AI",
+        ["gemini-3.6-flash (Szybki i Niezawodny)"],
         index=0
     )
     selected_model = model_choice.split(" ")[0]
