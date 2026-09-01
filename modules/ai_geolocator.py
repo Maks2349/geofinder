@@ -1,4 +1,4 @@
-﻿import os
+import os
 import json
 import base64
 import re
@@ -213,5 +213,5 @@ def analyze_images_top3(images: Union[Image.Image, List[Image.Image]], api_key: 
 
     return {
         "success": False, 
-        "error": "Chwilowe obciążenie Google. Odczekaj 10 sekund i kliknij ponownie."
+        "error": f"Błąd Google API: {last_error_msg}"
     }
